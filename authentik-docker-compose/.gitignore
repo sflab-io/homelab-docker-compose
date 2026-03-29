@@ -1,0 +1,5 @@
+database/
+certs/
+custom-templates/
+data/
+.env

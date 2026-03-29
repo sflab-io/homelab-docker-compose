@@ -1,8 +1,7 @@
 services:
   postgresql:
-    # does not work in portainer
-    # env_file:
-    # - .env
+    image: docker.io/library/postgres:16-alpine
+    container_name: authentik-docker-compose-postgresql
     environment:
       POSTGRES_DB: ${PG_DB:-authentik}
       POSTGRES_PASSWORD: ${PG_PASS:?database password required}
@@ -15,50 +14,55 @@ services:
       - CMD-SHELL
       - pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}
       timeout: 5s
-    image: docker.io/library/postgres:16-alpine
     restart: unless-stopped
     volumes:
     - ./database:/var/lib/postgresql/data
+    networks:
+    - backend
   
   server:
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2}
+    container_name: authentik-docker-compose-server
     command: server
     depends_on:
       postgresql:
         condition: service_healthy
-    # does not work in portainer
-    # env_file:
-    # - .env
     environment:
       AUTHENTIK_POSTGRESQL__HOST: postgresql
       AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
       AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2}
-    ports:
-    - ${COMPOSE_PORT_HTTP:-9000}:9000
-    - ${COMPOSE_PORT_HTTPS:-9443}:9443
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.authentik-docker-compose-server.rule=Host(`authentik.docker.home.sflab.io`)"
+      - "traefik.http.routers.authentik-docker-compose-server.entrypoints=websecure"
+      - "traefik.http.routers.authentik-docker-compose-server.tls=true"
+      - "traefik.http.routers.authentik-docker-compose-server.tls.certresolver=vault"
+      - "traefik.http.routers.authentik-docker-compose-server.service=authentik-docker-compose-svc"
+      - "traefik.http.services.authentik-docker-compose-svc.loadbalancer.server.port=9000"
     restart: unless-stopped
     shm_size: 512mb
     volumes:
     - ./data:/data
     - ./custom-templates:/templates
+    networks:
+    - backend
+    - proxy
   
   worker:
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2}
+    container_name: authentik-docker-compose-worker
     command: worker
     depends_on:
       postgresql:
         condition: service_healthy
-    # does not work in portainer
-    # env_file:
-    # - .env
     environment:
       AUTHENTIK_POSTGRESQL__HOST: postgresql
       AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
       AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2}
     restart: unless-stopped
     shm_size: 512mb
     user: root
@@ -67,3 +71,11 @@ services:
     - ./data:/data
     - ./certs:/certs
     - ./custom-templates:/templates
+    networks:
+    - backend
+
+networks:
+  backend:
+    external: true
+  proxy:
+    external: true

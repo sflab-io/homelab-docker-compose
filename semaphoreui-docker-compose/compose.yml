@@ -1,0 +1,74 @@
+services:
+  semaphore_db:
+    image: postgres
+    environment:
+      POSTGRES_USER: semaphore
+      POSTGRES_PASSWORD: 10v97cafha
+      POSTGRES_DB: semaphore
+    volumes:
+      - semaphore_postgres:/var/lib/postgresql
+    networks:
+      - semaphore_network
+
+  semaphore:
+    image: semaphoreui/semaphore:v2.17.26
+    container_name: semaphoreui-docker-compose-semaphore
+    depends_on:
+      - semaphore_db
+    environment:
+      SEMAPHORE_DB_DIALECT: postgres
+      SEMAPHORE_DB_HOST: semaphore_db
+      SEMAPHORE_DB_NAME: semaphore
+      SEMAPHORE_DB_USER: semaphore
+      SEMAPHORE_DB_PASS: 10v97cafha
+      SEMAPHORE_ADMIN: admin
+      SEMAPHORE_ADMIN_PASSWORD: admin123
+      SEMAPHORE_ADMIN_NAME: Sebastian Freund
+      SEMAPHORE_ADMIN_EMAIL: abes140377@web.de
+      SEMAPHORE_USE_REMOTE_RUNNER: "True"
+      SEMAPHORE_RUNNER_REGISTRATION_TOKEN: "${REGISTRATION_TOKEN:?secret key required}"
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.semaphoreui-docker-compose-semaphore.rule=Host(`semaphoreui.docker.home.sflab.io`)"
+      - "traefik.http.routers.semaphoreui-docker-compose-semaphore.entrypoints=websecure"
+      - "traefik.http.routers.semaphoreui-docker-compose-semaphore.tls=true"
+      - "traefik.http.routers.semaphoreui-docker-compose-semaphore.tls.certresolver=vault"
+      - "traefik.http.routers.semaphoreui-docker-compose-semaphore.service=semaphoreui-docker-compose-semaphore-svc"
+      - "traefik.http.services.semaphoreui-docker-compose-semaphore-svc.loadbalancer.server.port=3000"
+    volumes:
+      - semaphore_data:/var/lib/semaphore
+      - semaphore_config:/etc/semaphore
+      - semaphore_tmp:/tmp/semaphore
+    networks:
+      - semaphore_network
+      - proxy
+
+  semaphore-runner:
+    image: semaphoreui/runner:v2.17.26
+    environment:
+      SEMAPHORE_RUNNER_PRIVATE_KEY_FILE: /var/lib/semaphore/runner.key
+      SEMAPHORE_WEB_ROOT: http://semaphore:3000
+      SEMAPHORE_RUNNER_REGISTRATION_TOKEN: "${REGISTRATION_TOKEN:?secret key required}"
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+    volumes:
+      - semaphore_runner_data:/var/lib/semaphore
+      - semaphore_runner_config:/etc/semaphore
+      - semaphore_runner_tmp:/tmp/semaphore
+    networks:
+      - semaphore_network
+
+volumes:
+  semaphore_postgres:
+  semaphore_data:
+  semaphore_config:
+  semaphore_tmp:
+  semaphore_runner_data:
+  semaphore_runner_config:
+  semaphore_runner_tmp:
+
+networks:
+  semaphore_network:
+    driver: "bridge"
+  proxy:
+    external: true

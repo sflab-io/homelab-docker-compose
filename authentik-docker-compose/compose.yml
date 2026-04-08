@@ -11,14 +11,14 @@ services:
       retries: 5
       start_period: 20s
       test:
-      - CMD-SHELL
-      - pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}
+        - CMD-SHELL
+        - pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}
       timeout: 5s
     restart: unless-stopped
     volumes:
-    - ./database:/var/lib/postgresql/data
+      - ./database:/var/lib/postgresql/data
     networks:
-    - backend
+      - backend
   
   server:
     image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2}
@@ -44,11 +44,11 @@ services:
     restart: unless-stopped
     shm_size: 512mb
     volumes:
-    - ./data:/data
-    - ./custom-templates:/templates
+      - ./data:/data
+      - ./custom-templates:/templates
     networks:
-    - backend
-    - proxy
+      - backend
+      - proxy
   
   worker:
     image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2}
@@ -67,12 +67,12 @@ services:
     shm_size: 512mb
     user: root
     volumes:
-    - /var/run/docker.sock:/var/run/docker.sock
-    - ./data:/data
-    - ./certs:/certs
-    - ./custom-templates:/templates
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+      - ./certs:/certs
+      - ./custom-templates:/templates
     networks:
-    - backend
+      - backend
 
 networks:
   backend:

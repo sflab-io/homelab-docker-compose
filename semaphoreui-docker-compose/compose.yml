@@ -2,9 +2,9 @@ services:
   semaphore_db:
     image: postgres
     environment:
-      POSTGRES_USER: semaphore
-      POSTGRES_PASSWORD: 10v97cafha
-      POSTGRES_DB: semaphore
+      POSTGRES_USER: "${POSTGRES_USER:?secret key required}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?secret key required}"
+      POSTGRES_DB: "${POSTGRES_DB:?secret key required}"
     volumes:
       - semaphore_postgres:/var/lib/postgresql
     networks:
@@ -18,9 +18,9 @@ services:
     environment:
       SEMAPHORE_DB_DIALECT: postgres
       SEMAPHORE_DB_HOST: semaphore_db
-      SEMAPHORE_DB_NAME: semaphore
-      SEMAPHORE_DB_USER: semaphore
-      SEMAPHORE_DB_PASS: 10v97cafha
+      SEMAPHORE_DB_NAME: "${POSTGRES_DB:?secret key required}"
+      SEMAPHORE_DB_USER: "${POSTGRES_USER:?secret key required}"
+      SEMAPHORE_DB_PASS: "${POSTGRES_PASSWORD:?secret key required}"
       SEMAPHORE_ADMIN: admin
       SEMAPHORE_ADMIN_PASSWORD: admin123
       SEMAPHORE_ADMIN_NAME: Sebastian Freund

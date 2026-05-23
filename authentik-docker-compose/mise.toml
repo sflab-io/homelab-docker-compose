@@ -12,8 +12,7 @@ _.file = [
 
 [hooks]
 enter = [
-  'echo ""',
-  'echo "[MISE] Setup $PROJECT_NAME project..."',
+  'echo "\n[MISE] Setup $PROJECT_NAME project..."',
   #
   'mise i -q',
 ]

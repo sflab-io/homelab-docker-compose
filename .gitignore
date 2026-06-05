@@ -1,3 +1,4 @@
+.prompts/
 data/
 letsencrypt/
 .env

@@ -4,15 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Purpose
 
-A collection of Docker Compose service stacks for a homelab. Each service lives in its own subdirectory (`<service-name>-docker-compose/`) with an isolated Compose file and credential management.
+A collection of Docker Compose service stacks for a homelab. Each service lives in its own subdirectory (`<service-name>/`) with an isolated Compose file and optional credential management.
 
 ## Common Commands
 
 ```bash
-# Install tooling for a service directory
+# Install tooling (from repository root or service directory)
 mise install
 
-# Run a service stack
+# Run a service stack (from within the service directory)
 docker compose up -d
 
 # Check secrets for accidental leaks before committing
@@ -21,51 +21,59 @@ pre-commit run --all-files
 
 ## Architecture
 
-### Directory Structure per Service
-
-Each service subdirectory follows this layout:
+### Repository Layout
 
 ```
-<service>-docker-compose/
-├── compose.yml              # Main Compose file
-├── .gitignore               # Excludes data/, .env, unencrypted secrets
-├── .sops.yaml               # SOPS age encryption config
-├── .creds.env.yaml          # SOPS-encrypted credentials (committed)
-└── mise.toml                # Loads .env, ~/.env, and .creds.env.yaml into shell
+homelab-docker-compose/
+├── .sops.yaml               # SOPS age encryption config (shared)
+├── .creds.env.yaml          # SOPS-encrypted credentials for all stacks (committed)
+├── .gitignore               # Excludes .prompts/, data/, letsencrypt/, .env
+├── mise.toml                # Root tooling: installs pre-commit, loads .env files
+├── .pre-commit-config.yaml  # gitleaks hook
+├── scanopy/
+│   ├── docker-compose.yml
+│   └── data/                # Runtime data (gitignored)
+└── vaultwarden/
+    └── docker-compose.yml
+```
+
+### Directory Structure per Service
+
+New services only need a Compose file — all shared config lives at the root:
+
+```
+<service>/
+└── docker-compose.yml       # Main Compose file
 ```
 
 ### Secrets & Credentials
 
 Secrets are managed with [SOPS](https://github.com/getsops/sops) + [age](https://age-encryption.org/):
 
-- `.creds.env.yaml` is encrypted with the age public key defined in `.sops.yaml`
-- `mise.toml` loads it automatically via `_.file` with `redact = true`
+- `.creds.env.yaml` at the repository root holds all service credentials, encrypted with the age public key in `.sops.yaml`
+- The root `mise.toml` loads `~/.env`, `.env`, and `.creds.env.yaml` automatically via `_.file` with `redact = true`
 - Required secrets in Compose files use `${VAR:?error message}` — the stack will fail to start if they are missing
 - Optional env vars use `${VAR:-default}`
 
 ### Networking & Traefik
 
-Services that need external access attach to an external `proxy` Docker network and declare Traefik labels:
+Services handle networking individually. Two patterns are in use:
+
+**Bundled Traefik** (e.g. `vaultwarden`): Traefik runs as a service within the stack on a local `proxy` bridge network. TLS is provided via HashiCorp Vault PKI ACME integration:
 
 ```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.<name>.rule=Host(`<service>.docker.home.sflab.io`)"
-  - "traefik.http.routers.<name>.entrypoints=websecure"
-  - "traefik.http.routers.<name>.tls.certresolver=vault"
-networks:
-  - proxy
-
-networks:
-  proxy:
-    external: true
+command:
+  - "--certificatesresolvers.vault.acme.caserver=${VAULT_ACME_ENDPOINT}"
+  - "--certificatesresolvers.vault.acme.httpchallenge=true"
 ```
 
-Internal service communication uses a dedicated bridge network per stack (e.g. `backend`, `semaphore_network`, `scanopy`).
+**Host-network daemon** (e.g. `scanopy`): The daemon service uses `network_mode: host` and `privileged: true`. Other services in the stack communicate over a dedicated internal bridge network.
+
+Internal service communication uses a dedicated bridge network per stack (e.g. `scanopy`).
 
 ### Container Naming Convention
 
-Containers are named `<directory-name>-<service-name>`, e.g. `authentik-docker-compose-server`.
+Containers use explicit `container_name` in the Compose file, following the pattern `<stack-name>-<service-name>`, e.g. `vaultwarden-docker-compose-vaultwarden`.
 
 ### Pre-commit Hook
 

@@ -1,81 +1,21 @@
 name: vaultwarden
 
 services:
-  traefik:
-    image: traefik:latest
-    container_name: vaultwarden-docker-compose-traefik
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      - TZ=Europe/Berlin
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./letsencrypt:/letsencrypt
-      # sflab-root-ca.crt und sflab-intermediate-ca.crt im Container verfügbar machen
-      - /etc/ssl/certs:/etc/ssl/certs:ro
-    command:
-      - "--api.dashboard=true"
-      - "--api.insecure=false"
-
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=proxy"
-
-      # HTTP-Entrypoint: Nur für ACME HTTP-01 Challenge und HTTPS-Redirect
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-
-      # HTTPS-Entrypoint: Haupteingang mit TLS
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.websecure.http.tls=true"
-      - "--entrypoints.websecure.http.tls.certresolver=vault"
-
-      # HashiCorp Vault PKI ACME-Integration
-      - "--certificatesresolvers.vault.acme.email=${ACME_EMAIL:-acme@sflab.io}"
-      - "--certificatesresolvers.vault.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.vault.acme.caserver=${VAULT_ACME_ENDPOINT:-https://vault.sflab.io:8200/v1/pki_intermediate/acme/directory}"
-      - "--certificatesresolvers.vault.acme.httpchallenge=true"
-      - "--certificatesresolvers.vault.acme.httpchallenge.entrypoint=web"
-
-      - "--log.level=INFO"
-      - "--accesslog=true"
-    labels:
-      - "traefik.enable=true"
-      # Secure-Headers Middleware (für alle Services verwendbar)
-      - "traefik.http.middlewares.secure-headers.headers.sslredirect=true"
-      - "traefik.http.middlewares.secure-headers.headers.stsSeconds=31536000"
-      - "traefik.http.middlewares.secure-headers.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.secure-headers.headers.stsPreload=true"
-      - "traefik.http.middlewares.secure-headers.headers.customFrameOptionsValue=SAMEORIGIN"
-      - "traefik.http.middlewares.secure-headers.headers.contentTypeNosniff=true"
-      - "traefik.http.middlewares.secure-headers.headers.browserXssFilter=true"
-      - "traefik.http.middlewares.secure-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
-      - "traefik.http.middlewares.secure-headers.headers.permissionsPolicy=camera=(), microphone=(), geolocation=()"
-    networks:
-      - proxy
-
   vaultwarden:
     image: vaultwarden/server:latest
     container_name: vaultwarden-docker-compose-vaultwarden
     restart: unless-stopped
     environment:
-      DOMAIN: "https://vaultwarden.docker.home.sflab.io"
+      DOMAIN: "${DOMAIN:?domain required}"
       # Token generieren: docker run --rm -it vaultwarden/server /vaultwarden hash --preset owasp
       ADMIN_TOKEN: "${ADMIN_TOKEN:?admin token required}"
       SIGNUPS_ALLOWED: "false"
       LOG_LEVEL: warn
     volumes:
       - ./data:/data
-    depends_on:
-      - traefik
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vaultwarden-docker-compose-vaultwarden.rule=Host(`vaultwarden.docker.home.sflab.io`)"
+      - "traefik.http.routers.vaultwarden-docker-compose-vaultwarden.rule=Host(`${VAULTWARDEN_HOST:?hostname required}`)"
       - "traefik.http.routers.vaultwarden-docker-compose-vaultwarden.entrypoints=websecure"
       - "traefik.http.routers.vaultwarden-docker-compose-vaultwarden.tls=true"
       - "traefik.http.routers.vaultwarden-docker-compose-vaultwarden.tls.certresolver=vault"
@@ -83,8 +23,8 @@ services:
       - "traefik.http.routers.vaultwarden-docker-compose-vaultwarden.middlewares=secure-headers"
       - "traefik.http.services.vaultwarden-docker-compose-vaultwarden-svc.loadbalancer.server.port=80"
     networks:
-      - proxy
+      - proxy-network
 
 networks:
-  proxy:
-    driver: bridge
+  proxy-network:
+    external: true
